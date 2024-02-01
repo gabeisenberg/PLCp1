@@ -1,6 +1,7 @@
 package plc.project;
 
 import java.util.List;
+import java.util.ArrayList;
 
 //import regex
 //import java.util.regex.Pattern;
@@ -31,24 +32,11 @@ public final class Lexer {
      * whitespace where appropriate.
      */
     public List<Token> lex() {
-        //getting list of tokens
-        //check first char
-        /*if (chars.input.charAt(0) == '\'') {
-            chars.skip();
-            lexCharacter();
+        List<Token> res = new ArrayList<>();
+        while (chars.index != chars.input.length()) {
+            res.add(lexToken());
         }
-        else if (chars.input.charAt(0) == '\"') {
-            chars.skip();
-            lexString();
-        }
-        else if ((chars.input.charAt(0) + "").matches("[0-9]|-")) {
-            chars.skip();
-            lexNumber();
-        }
-        else
-            lexIdentifier();*/
-        //lexIdentifier();
-        throw new UnsupportedOperationException(); //TODO
+        return res;
     }
 
     /**
