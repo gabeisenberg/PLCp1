@@ -34,7 +34,11 @@ public final class Lexer {
     public List<Token> lex() {
         List<Token> res = new ArrayList<>();
         while (chars.index != chars.input.length()) {
-            res.add(lexToken());
+            //skip white space
+            if (peek("[\b\n\r\t ]"))
+                lexEscape();
+            else
+                res.add(lexToken());
         }
         return res;
     }
@@ -48,119 +52,143 @@ public final class Lexer {
      * by {@link #lex()}
      */
     public Token lexToken() {
-        char first = chars.input.charAt(0);
-        if (Character.isDigit(first) || (first == '-' &&  chars.input.length() > 1 && Character.isDigit(chars.input.charAt(1))) || first == '.')
-            return lexNumber();
-        else if (first == '\'')
-            return lexCharacter();
-        else if (first == '\"')
+        if (peek("\""))
             return lexString();
-        else if (Character.isAlphabetic(first) || first == '@' || (first == '-' &&  chars.input.length() > 1 && Character.isAlphabetic(chars.input.charAt(1))))
+        else if (peek("\'"))
+            return lexCharacter();
+        else if (peek("[1-9-]"))
+            return lexNumber();
+        else if (peek("[A-Za-z@]"))
             return lexIdentifier();
-        else
-            return lexOperator();
+        return lexOperator();
     }
 
     public Token lexIdentifier() {
-        String pattern = "@?[A-Za-z]([A-Za-z0-9_-])*";
-        String temp = "";
-        for (int i = 0; i < chars.input.length(); i++) {
-            temp += chars.input.charAt(i);
-            if (temp.matches(pattern)) {
-                chars.advance();
-            }
+        match("[A-Za-z@]");
+        while (peek("[A-Za-z0-9_-]")) {
+            match("[A-Za-z0-9_-]");
         }
         return chars.emit(Token.Type.IDENTIFIER);
     }
 
     public Token lexNumber() {
-        if (chars.input.contains("."))
-            return lexDecimal();
-        String pattern = "-?[1-9][0-9]*";
-        String temp = "";
-        for (int i = 0; i < chars.input.length(); i++) {
-            temp += chars.input.charAt(i);
-            if (chars.input.charAt(i) == '-' && i == 0 && chars.input.length() > 1) {
-                chars.advance();
-            } else if (temp.matches(pattern)) {
-                chars.advance();
+        //check if number is after .
+        if (chars.input.contains(".")) {
+            int num = chars.input.indexOf(".") + 1;
+            int num2 = chars.input.length();
+            if (num2 > num) {
+                char temp = chars.input.charAt((chars.input.indexOf(".") + 1));
+                if (chars.input.length() > chars.input.indexOf(".") + 1 && Character.isDigit(temp))
+                    return lexDecimal();
             }
+        }
+        match("[1-9-]");
+        while (peek("[0-9]")) {
+            match("[0-9]");
         }
         return chars.emit(Token.Type.INTEGER);
     }
 
     public Token lexDecimal() {
-        String input = chars.input.toString();
-
-        // Define a regular expression pattern for a valid decimal number
-        String decimalPattern = "([-]?[1-9][0-9]*\\.[0-9]+|[0-9]+\\.[0-9]+)";
-
-        // Check if the input matches the decimal pattern
-        if (input.matches("^" + decimalPattern)) {
-            return new Token(Token.Type.DECIMAL, input, 0);
-        } else {
-            return new Token(Token.Type.DECIMAL, "Invalid decimal", 0);
+        match("[1-9-]");
+        while (peek("[0-9]")) {
+            match("[0-9]");
         }
+        if (peek("\\.")) {
+            match("\\.");
+        }
+        while (peek("[0-9]")) {
+            match("[0-9]");
+        }
+        return chars.emit(Token.Type.DECIMAL);
     }
 
     public Token lexCharacter() {
-        String input = chars.input.toString();
-
-        // Check if the input matches the character pattern
-        if (input.matches("^'([^'\n\r\\\\]|\\\\.)'$")) {
-            return new Token(Token.Type.CHARACTER, input, 0);
-        } else {
-            return new Token(Token.Type.CHARACTER, "Invalid character", 0);
+        match("\'");
+        if (peek("\'")) {
+            //empty character
+            throw new ParseException("Empty character!", chars.index);
+        }
+        if (peek("[^\\\\]")) {
+            //not escape character
+            match("[^\\\\]");
+        }
+        else {
+            //escape character
+            match("[\\\\]");
+            if (peek("[bnrt\"\'\\\\]")) {
+                match("[bnrt\"\'\\\\]");
+            }
+            else {
+                throw new ParseException("Invalid escape!", chars.index);
+            }
+        }
+        //check final quotation
+        if (peek("\'")) {
+            match("\'");
+            return chars.emit(Token.Type.CHARACTER);
+        }
+        else {
+            //unterminated string
+            throw new ParseException("Unterminated character!", chars.index);
         }
     }
 
     public Token lexString() {
-        if (chars.input.length() > 0 || chars.input.charAt(0) == '\"') {
-            chars.advance();
-        }
-        else {
-            throw new ParseException(chars.input.substring(0, 1), 0);
-        }
-        for (int i = 1; i < chars.input.length() - 1; i++) {
-            char temp = chars.input.charAt(i);
-            if ((chars.input.charAt(i) + "").matches("[^\\\\]")) {
-                chars.advance();
-            }
-            else if (chars.input.charAt(i) == '\\') {
-                if (chars.input.length() > i + 1 && (chars.input.charAt(i + 1) + "").matches("[bnrt\'\"\\\\]")) {
-                    chars.advance();
-                    chars.advance();
-                    i++;
-                }
-                else {
-                    throw new ParseException(chars.input.substring(0, chars.index), chars.index);
-                }
+        match("\"");
+        while(peek("[^\"]")) {
+            if (peek("[^\\\\]")) {
+                //if does not start with escape sequence
+                match("[^\\\\]");
             }
             else {
-                throw new ParseException(chars.input.substring(0, chars.index), chars.index);
+                //starts with escape sequence
+                match("[\\\\]");
+                //check if next character is valid escape
+                if (peek("[bnrt\"\'\\\\]")) {
+                    match("[bnrt\"\'\\\\]");
+                }
+                else {
+                    //invalid escape
+                    throw new ParseException("Invalid escape!", chars.index);
+                }
             }
         }
-        if (chars.input.charAt(chars.input.length()-1) == '\"') {
-            chars.advance();
+        //check final quotation
+        if (peek("\"")) {
+            match("\"");
+            return chars.emit(Token.Type.STRING);
         }
         else {
-            throw new ParseException(chars.input.substring(0, chars.input.length()-1), chars.input.length()-1);
+            //unterminated string
+            throw new ParseException("Unterminated string!", chars.index);
         }
-        return chars.emit(Token.Type.STRING);
     }
 
     public void lexEscape() {
-        match("\\", "[bnrts]");
+        //match("[\b\n\r\t ]");
+        //bug where i have to remove whitespace
+        chars.index++;
     }
 
     public Token lexOperator() {
-        throw new UnsupportedOperationException(); //TODO
+        if (peek("=", "="))
+            match("=", "=");
+        else if (peek("!", "="))
+            match("!", "=");
+        else if (peek("&", "&"))
+            match("&", "&");
+        else if (peek("|", "|"))
+            match("|", "|");
+        else
+            match(".");
+        return chars.emit(Token.Type.OPERATOR);
     }
 
     /**
      * Returns true if the next sequence of characters match the given patterns,
      * which should be a regex. For example, {@code peek("a", "b", "c")} would
-     * return true if the next characters are {@code 'a', 'b', 'c'}.
+//     * return true if the next characters are {@code 'a', 'b', 'c'}.
      */
     public boolean peek(String... patterns) {
         for (int i=0; i < patterns.length; i++){
