@@ -33,7 +33,7 @@ public final class Lexer {
      */
     public List<Token> lex() {
         List<Token> res = new ArrayList<>();
-        while (chars.index != chars.input.length()) {
+        while (chars.index < chars.input.length()) {
             //skip white space
             if (peek("[\b\n\r\t ]"))
                 lexEscape();
@@ -73,12 +73,13 @@ public final class Lexer {
 
     public Token lexNumber() {
         //check if number is after .
-        if (chars.input.contains(".")) {
-            int num = chars.input.indexOf(".") + 1;
-            int num2 = chars.input.length();
+        String test = chars.input.substring(chars.index);
+        if (test.contains(".")) {
+            int num = test.indexOf(".") + 1;
+            int num2 = test.length();
             if (num2 > num) {
-                char temp = chars.input.charAt((chars.input.indexOf(".") + 1));
-                if (chars.input.length() > chars.input.indexOf(".") + 1 && Character.isDigit(temp))
+                char temp = test.charAt((test.indexOf(".") + 1));
+                if (test.length() > test.indexOf(".") + 1 && Character.isDigit(temp))
                     return lexDecimal();
             }
         }
